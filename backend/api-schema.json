@@ -1,0 +1,254 @@
+{
+  "title": "Money Movement Backend API",
+  "version": "1.0.0",
+  "baseUrl": "http://localhost:8080",
+  "auth": "Bearer JWT in Authorization header for all endpoints except /api/auth/**",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "auth": false,
+      "request": {
+        "username": "string (3-50)",
+        "email": "string (email)",
+        "password": "string (min 8)",
+        "fullName": "string",
+        "phoneNumber": "string (optional)"
+      },
+      "response": {
+        "token": "string (JWT)",
+        "username": "string",
+        "email": "string",
+        "fullName": "string",
+        "balance": "number (100000.00)",
+        "currency": "string (BDT)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "auth": false,
+      "request": {
+        "username": "string",
+        "password": "string"
+      },
+      "response": {
+        "token": "string (JWT)",
+        "username": "string",
+        "email": "string",
+        "fullName": "string",
+        "balance": "number",
+        "currency": "string"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/transfers",
+      "auth": true,
+      "request": {
+        "toUsername": "string",
+        "amount": "number (positive, 2 decimals)",
+        "description": "string (optional)",
+        "idempotencyKey": "string (optional, prevents duplicate on retry)"
+      },
+      "response": {
+        "referenceId": "string (UUID)",
+        "type": "TRANSFER",
+        "status": "COMPLETED",
+        "senderAccountId": "number",
+        "receiverAccountId": "number",
+        "senderUsername": "string",
+        "receiverUsername": "string",
+        "amount": "number",
+        "currency": "string",
+        "description": "string",
+        "createdAt": "string (ISO-8601)"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/transfers/{referenceId}",
+      "auth": true,
+      "request": {
+        "referenceId": "path param (string)"
+      },
+      "response": {
+        "referenceId": "string",
+        "type": "string",
+        "status": "string",
+        "senderAccountId": "number",
+        "receiverAccountId": "number",
+        "senderUsername": "string",
+        "receiverUsername": "string",
+        "amount": "number",
+        "currency": "string",
+        "description": "string",
+        "createdAt": "string"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/requests",
+      "auth": true,
+      "request": {
+        "fromUsername": "string (debtor)",
+        "amount": "number (positive)",
+        "note": "string (optional)"
+      },
+      "response": {
+        "id": "number",
+        "requesterAccountId": "number",
+        "debtorAccountId": "number",
+        "requesterUsername": "string",
+        "debtorUsername": "string",
+        "amount": "number",
+        "currency": "string",
+        "note": "string",
+        "status": "PENDING",
+        "createdAt": "string",
+        "resolvedAt": "string (null)"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/requests/{id}/accept",
+      "auth": true,
+      "request": {
+        "id": "path param (number)"
+      },
+      "response": {
+        "referenceId": "string",
+        "type": "REQUEST_SETTLEMENT",
+        "status": "COMPLETED",
+        "senderAccountId": "number",
+        "receiverAccountId": "number",
+        "senderUsername": "string",
+        "receiverUsername": "string",
+        "amount": "number",
+        "currency": "string",
+        "description": "string",
+        "createdAt": "string"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/requests/{id}/decline",
+      "auth": true,
+      "request": {
+        "id": "path param (number)"
+      },
+      "response": {
+        "id": "number",
+        "requesterAccountId": "number",
+        "debtorAccountId": "number",
+        "requesterUsername": "string",
+        "debtorUsername": "string",
+        "amount": "number",
+        "currency": "string",
+        "note": "string",
+        "status": "DECLINED",
+        "createdAt": "string",
+        "resolvedAt": "string"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/requests/incoming",
+      "auth": true,
+      "request": {},
+      "response": [
+        {
+          "id": "number",
+          "requesterAccountId": "number",
+          "debtorAccountId": "number",
+          "requesterUsername": "string",
+          "debtorUsername": "string",
+          "amount": "number",
+          "currency": "string",
+          "note": "string",
+          "status": "PENDING",
+          "createdAt": "string",
+          "resolvedAt": "string"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/requests/outgoing",
+      "auth": true,
+      "request": {},
+      "response": [
+        {
+          "id": "number",
+          "requesterAccountId": "number",
+          "debtorAccountId": "number",
+          "requesterUsername": "string",
+          "debtorUsername": "string",
+          "amount": "number",
+          "currency": "string",
+          "note": "string",
+          "status": "PENDING",
+          "createdAt": "string",
+          "resolvedAt": "string"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/me/balance",
+      "auth": true,
+      "request": {},
+      "response": {
+        "balance": "number",
+        "currency": "string"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/balance/{username}",
+      "auth": true,
+      "request": {
+        "username": "path param (string)"
+      },
+      "response": {
+        "balance": "number",
+        "currency": "string"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/me/history",
+      "auth": true,
+      "request": {},
+      "response": [
+        {
+          "referenceId": "string",
+          "type": "string",
+          "status": "string",
+          "senderAccountId": "number",
+          "receiverAccountId": "number",
+          "senderUsername": "string",
+          "receiverUsername": "string",
+          "amount": "number",
+          "currency": "string",
+          "description": "string",
+          "createdAt": "string"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/users/search",
+      "auth": true,
+      "request": {
+        "q": "query param (min 2 chars)"
+      },
+      "response": [
+        {
+          "username": "string",
+          "fullName": "string"
+        }
+      ]
+    }
+  ]
+}

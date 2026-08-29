@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: money-backend
+  labels:
+    app: money-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: money-backend
+  template:
+    metadata:
+      labels:
+        app: money-backend
+    spec:
+      containers:
+        - name: money-backend
+          image: money-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: money-backend
+spec:
+  selector:
+    app: money-backend
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: LoadBalancer
