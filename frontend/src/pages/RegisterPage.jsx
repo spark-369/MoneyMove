@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { ApiError } from '../api/client';
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -24,14 +24,25 @@ export default function RegisterPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    const username = form.username.trim();
+    const email = form.email.trim();
+    const fullName = form.fullName.trim();
+    if (username.length < 3) return setError('Username must be at least 3 characters');
+    if (!fullName) return setError('Full name is required');
+    if (!email) return setError('Email is required');
+    if (form.password.length < 8) return setError('Password must be at least 8 characters');
+    const phone = form.phoneNumber.trim();
+    if (phone && !/^[0-9+\- ]{6,20}$/.test(phone)) {
+      return setError('Invalid phone number');
+    }
     setSubmitting(true);
     try {
       await register({
-        username: form.username.trim(),
-        email: form.email.trim(),
+        username,
+        email,
         password: form.password,
-        fullName: form.fullName.trim(),
-        phoneNumber: form.phoneNumber.trim(),
+        fullName,
+        phoneNumber: phone,
       });
       navigate('/', { replace: true });
     } catch (err) {
@@ -39,6 +50,10 @@ export default function RegisterPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
   }
 
   return (

@@ -18,10 +18,7 @@ export default function DashboardPage() {
     let active = true;
     async function load() {
       try {
-        const balanceCall = user?.username
-          ? accountApi.getBalance(user.username)
-          : accountApi.getMyBalance();
-        const [bal, hist] = await Promise.all([balanceCall, accountApi.getHistory()]);
+        const [bal, hist] = await Promise.all([accountApi.getMyBalance(), accountApi.getHistory()]);
         if (!active) return;
         setBalance(bal.balance);
         setCurrency(bal.currency);
@@ -37,7 +34,7 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [updateBalance, user?.username]);
+  }, [updateBalance]);
 
   return (
     <div className="dashboard">

@@ -9,10 +9,12 @@ export function AuthProvider({ children }) {
   const [user, setUserState] = useState(() => getUser());
   const [token, setTokenState] = useState(() => getToken());
   const [loading, setLoading] = useState(false);
-  const [rehydrating, setRehydrating] = useState(() => Boolean(getToken()) && !getUser());
+  // A stored token with no cached profile means we must verify the session
+  // (and recover the profile) before rendering protected routes.
+  const [initializing, setInitializing] = useState(() => Boolean(getToken()) && !getUser());
 
   useEffect(() => {
-    if (!rehydrating) return;
+    if (!initializing) return;
     let active = true;
     (async () => {
       try {
@@ -34,14 +36,16 @@ export function AuthProvider({ children }) {
           setUserState(null);
           setUser(null);
         }
+        // Non-401 failures (e.g. a cold backend) leave the stored token intact
+        // so the user is not logged out for a transient network problem.
       } finally {
-        if (active) setRehydrating(false);
+        if (active) setInitializing(false);
       }
     })();
     return () => {
       active = false;
     };
-  }, [rehydrating]);
+  }, [initializing]);
 
   const applyAuthResponse = useCallback((data) => {
     const nextUser = {
@@ -106,13 +110,14 @@ export function AuthProvider({ children }) {
       user,
       token,
       loading,
-      isAuthenticated: Boolean(token),
+      initializing,
+      isAuthenticated: Boolean(token) && !initializing,
       login,
       register,
       logout,
       updateBalance,
     }),
-    [user, token, loading, login, register, logout, updateBalance]
+    [user, token, loading, initializing, login, register, logout, updateBalance]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -76,11 +76,15 @@ class TransferServiceTest {
         when(accountRepository.findByUserIdForUpdate(1L)).thenReturn(Optional.of(senderAccount));
         when(accountRepository.findByUserIdForUpdate(2L)).thenReturn(Optional.of(receiverAccount));
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findByAccountId(10L)).thenReturn(Optional.of(sender));
+        when(userRepository.findByAccountId(20L)).thenReturn(Optional.of(receiver));
 
         TransferRequest req = new TransferRequest("bob", new BigDecimal("250.00"), "gift", null);
         TransactionResponse response = transferService.transfer(req);
 
         assertThat(response.getStatus()).isEqualTo(TransactionStatus.COMPLETED.name());
+        assertThat(response.getSenderUsername()).isEqualTo("alice");
+        assertThat(response.getReceiverUsername()).isEqualTo("bob");
         assertThat(senderAccount.getBalance()).isEqualByComparingTo("750.00");
         assertThat(receiverAccount.getBalance()).isEqualByComparingTo("250.00");
         assertThat(response.getAmount()).isEqualByComparingTo("250.00");

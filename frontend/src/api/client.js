@@ -49,7 +49,9 @@ function extractErrorMessage(data, fallback) {
   if (typeof data === 'string') return data;
   if (data.message) {
     if (typeof data.message === 'object') {
-      return Object.values(data.message).join(', ');
+      // Backend validation errors arrive as { field: message } — flatten to a readable string.
+      const messages = Object.values(data.message).filter(Boolean);
+      if (messages.length) return messages.join(', ');
     }
     return data.message;
   }
@@ -88,6 +90,7 @@ export async function request(method, path, { body, auth = true, query } = {}) {
   if (!response.ok) {
     if (response.status === 401) {
       setToken(null);
+      setUser(null);
     }
     throw new ApiError(
       extractErrorMessage(data, `Request failed with status ${response.status}`),

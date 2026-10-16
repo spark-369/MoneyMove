@@ -210,8 +210,8 @@ class MoneyRequestServiceTest {
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(debtor));
         when(accountRepository.findByUserId(2L)).thenReturn(Optional.of(debtorAccount));
         when(moneyRequestRepository.findPendingForDebtor(20L)).thenReturn(List.of(pendingRequest()));
-        when(userRepository.findById(10L)).thenReturn(Optional.of(requester));
-        when(userRepository.findById(20L)).thenReturn(Optional.of(debtor));
+        when(userRepository.findByAccountId(10L)).thenReturn(Optional.of(requester));
+        when(userRepository.findByAccountId(20L)).thenReturn(Optional.of(debtor));
 
         List<MoneyRequestResponse> incoming = moneyRequestService.listIncoming();
 

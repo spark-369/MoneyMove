@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/useAuth';
 import * as transferApi from '../api/transfer';
 import * as accountApi from '../api/account';
 import { ApiError } from '../api/client';
-import { formatMoney } from '../utils/format';
+import { formatMoney, generateIdempotencyKey } from '../utils/format';
 
 export default function TransferPage() {
   const { user, updateBalance } = useAuth();
@@ -11,26 +11,40 @@ export default function TransferPage() {
   const [toUsername, setToUsername] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [idempotencyKey, setIdempotencyKey] = useState('');
   const [search, setSearch] = useState('');
   const [results, setResults] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSearch(q) {
-    setSearch(q);
-    if (q.trim().length < 2) {
+  // Monotonic id so a slow, out-of-order search response cannot overwrite the
+  // results of a newer keystroke.
+  const searchSeq = useRef(0);
+
+  // Auto-generated per-transaction idempotency key. It is created once when the
+  // form mounts and reused for every retry of the same submission, so a network
+  // retry or double-click cannot move money twice. It is rotated only after a
+  // successful transfer (when the form is reset for the next payment).
+  const idempotencyKey = useRef(generateIdempotencyKey());
+
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 2) {
       setResults([]);
-      return;
+      return undefined;
     }
-    try {
-      const users = await accountApi.searchUsers(q.trim());
-      setResults(users.filter((u) => u.username !== user?.username));
-    } catch {
-      setResults([]);
-    }
-  }
+    const seq = ++searchSeq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const users = await accountApi.searchUsers(q);
+        if (seq !== searchSeq.current) return;
+        setResults(users.filter((u) => u.username !== user?.username));
+      } catch {
+        if (seq === searchSeq.current) setResults([]);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [search, user?.username]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -46,15 +60,19 @@ export default function TransferPage() {
         toUsername: toUsername.trim(),
         amount: amt.toFixed(2),
         description: description.trim(),
-        idempotencyKey: idempotencyKey.trim() || undefined,
+        idempotencyKey: idempotencyKey.current,
       });
-      setSuccess(`Sent ${formatMoney(tx.amount, tx.currency)} to ${tx.receiverUsername}. Ref: ${tx.referenceId}`);
+      setSuccess(
+        `Sent ${formatMoney(tx.amount, tx.currency)} to ${tx.receiverUsername || toUsername.trim()}. Ref: ${tx.referenceId}`
+      );
       setAmount('');
       setDescription('');
-      setIdempotencyKey('');
       setToUsername('');
       setResults([]);
       setSearch('');
+      // New payment next time: rotate to a fresh key so the value just used is
+      // not accidentally replayed for a different transfer.
+      idempotencyKey.current = generateIdempotencyKey();
       if (user) {
         const bal = await accountApi.getMyBalance();
         updateBalance(bal.balance, bal.currency);
@@ -80,7 +98,7 @@ export default function TransferPage() {
             value={toUsername}
             onChange={(e) => {
               setToUsername(e.target.value);
-              handleSearch(e.target.value);
+              setSearch(e.target.value);
             }}
             placeholder="Search or type username"
             required
@@ -131,15 +149,6 @@ export default function TransferPage() {
           />
         </label>
 
-        <label className="field">
-          <span>Idempotency key (optional)</span>
-          <input
-            value={idempotencyKey}
-            onChange={(e) => setIdempotencyKey(e.target.value)}
-            placeholder="prevents duplicate transfers"
-          />
-        </label>
-
         <button className="btn btn-primary btn-block" type="submit" disabled={submitting}>
           {submitting ? <span className="spinner" /> : 'Send'}
         </button>
@@ -187,7 +196,7 @@ function LookupTransfer() {
       {tx && (
         <div className="lookup-result">
           <div><span className="muted">Reference:</span> {tx.referenceId}</div>
-          <div><span className="muted">From:</span> {tx.senderUsername} → <span className="muted">To:</span> {tx.receiverUsername}</div>
+          <div><span className="muted">From:</span> {tx.senderUsername || '-'} → <span className="muted">To:</span> {tx.receiverUsername || '-'}</div>
           <div><span className="muted">Amount:</span> {formatMoney(tx.amount, tx.currency)}</div>
           <div><span className="muted">Description:</span> {tx.description || '-'}</div>
           <div><span className="muted">Status:</span> {tx.status}</div>

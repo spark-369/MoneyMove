@@ -13,16 +13,19 @@ import com.pstu.backend.dto.response.TransactionResponse;
 import com.pstu.backend.exception.BadRequestException;
 import com.pstu.backend.exception.InsufficientBalanceException;
 import com.pstu.backend.exception.ResourceNotFoundException;
+import com.pstu.backend.mapper.TransactionMapper;
 import com.pstu.backend.repository.AccountRepository;
 import com.pstu.backend.repository.MoneyRequestRepository;
 import com.pstu.backend.repository.TransactionRepository;
 import com.pstu.backend.repository.UserRepository;
 import com.pstu.backend.security.SecurityHelper;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -61,7 +64,7 @@ public class MoneyRequestService {
         User debtor = userRepository.findByUsername(request.getFromUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + request.getFromUsername()));
 
-        BigDecimal amount = request.getAmount().setScale(2, BigDecimal.ROUND_HALF_UP);
+        BigDecimal amount = request.getAmount().setScale(2, RoundingMode.HALF_UP);
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BadRequestException("Request amount must be positive");
         }
@@ -78,6 +81,7 @@ public class MoneyRequestService {
         return toResponse(saved);
     }
 
+    @CacheEvict(cacheNames = "balances", allEntries = true)
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public TransactionResponse acceptRequest(Long requestId) {
         String debtorUsername = securityHelper.currentUsername();
@@ -180,14 +184,18 @@ public class MoneyRequestService {
     }
 
     private MoneyRequestResponse toResponse(MoneyRequest r) {
-        User requester = userRepository.findById(r.getRequesterAccountId()).orElse(null);
-        User debtor = userRepository.findById(r.getDebtorAccountId()).orElse(null);
+        String requesterUsername = userRepository.findByAccountId(r.getRequesterAccountId())
+                .map(user -> user.getUsername())
+                .orElse(null);
+        String debtorUsername = userRepository.findByAccountId(r.getDebtorAccountId())
+                .map(user -> user.getUsername())
+                .orElse(null);
         return new MoneyRequestResponse(
                 r.getId(),
                 r.getRequesterAccountId(),
                 r.getDebtorAccountId(),
-                requester != null ? requester.getUsername() : null,
-                debtor != null ? debtor.getUsername() : null,
+                requesterUsername,
+                debtorUsername,
                 r.getAmount(),
                 r.getCurrency(),
                 r.getNote(),
@@ -197,19 +205,6 @@ public class MoneyRequestService {
     }
 
     private TransactionResponse toTransactionResponse(Transaction tx) {
-        User sender = userRepository.findById(tx.getSenderAccountId()).orElse(null);
-        User receiver = userRepository.findById(tx.getReceiverAccountId()).orElse(null);
-        return new TransactionResponse(
-                tx.getReferenceId(),
-                tx.getType().name(),
-                tx.getStatus().name(),
-                tx.getSenderAccountId(),
-                tx.getReceiverAccountId(),
-                sender != null ? sender.getUsername() : null,
-                receiver != null ? receiver.getUsername() : null,
-                tx.getAmount(),
-                tx.getCurrency(),
-                tx.getDescription(),
-                tx.getCreatedAt());
+        return TransactionMapper.toResponse(tx, userRepository);
     }
 }

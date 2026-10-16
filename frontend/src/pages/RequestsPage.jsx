@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as requestApi from '../api/requests';
+import * as accountApi from '../api/account';
 import { ApiError } from '../api/client';
+import { useAuth } from '../context/useAuth';
 import { formatMoney, formatDate, statusBadgeClass } from '../utils/format';
 
 export default function RequestsPage() {
+  const { updateBalance } = useAuth();
   const [tab, setTab] = useState('incoming');
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -31,9 +35,23 @@ export default function RequestsPage() {
   async function handleAccept(id) {
     setBusyId(id);
     setError('');
+    setNotice('');
     try {
-      await requestApi.acceptRequest(id);
-      load();
+      // The accept endpoint returns the settlement TransactionResponse, which
+      // carries the transfer reference — surface it as a receipt.
+      const tx = await requestApi.acceptRequest(id);
+      // Paying a request moves money out of the caller's account; refresh the
+      // cached balance before showing the refreshed list.
+      await load();
+      try {
+        const bal = await accountApi.getMyBalance();
+        updateBalance(bal.balance, bal.currency);
+      } catch {
+        // Balance refresh is best-effort; the request itself already succeeded.
+      }
+      if (tx?.referenceId) {
+        setNotice(`Paid ${formatMoney(tx.amount, tx.currency)}. Ref: ${tx.referenceId}`);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to accept');
     } finally {
@@ -44,9 +62,10 @@ export default function RequestsPage() {
   async function handleDecline(id) {
     setBusyId(id);
     setError('');
+    setNotice('');
     try {
       await requestApi.declineRequest(id);
-      load();
+      await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to decline');
     } finally {
@@ -58,21 +77,22 @@ export default function RequestsPage() {
     <div className="page-narrow">
       <h1 className="page-title">Money requests</h1>
       {error && <div className="alert alert-danger">{error}</div>}
+      {notice && <div className="alert alert-success">{notice}</div>}
 
       <div className="tabs">
-        <button className={tab === 'incoming' ? 'tab active' : 'tab'} onClick={() => setTab('incoming')}>
+        <button className={tab === 'incoming' ? 'tab active' : 'tab'} onClick={() => { setNotice(''); setTab('incoming'); }}>
           Incoming
         </button>
-        <button className={tab === 'outgoing' ? 'tab active' : 'tab'} onClick={() => setTab('outgoing')}>
+        <button className={tab === 'outgoing' ? 'tab active' : 'tab'} onClick={() => { setNotice(''); setTab('outgoing'); }}>
           Outgoing
         </button>
-        <button className="tab tab-action" onClick={() => setTab('create')}>
+        <button className="tab tab-action" onClick={() => { setNotice(''); setTab('create'); }}>
           + New request
         </button>
       </div>
 
       {tab === 'create' ? (
-        <CreateRequestForm onDone={() => setTab('outgoing')} />
+        <CreateRequestForm onDone={() => { setTab('outgoing'); }} />
       ) : (
         <div className="card">
           {loading ? (

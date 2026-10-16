@@ -10,6 +10,7 @@ import com.pstu.backend.dto.response.TransactionResponse;
 import com.pstu.backend.exception.BadRequestException;
 import com.pstu.backend.exception.InsufficientBalanceException;
 import com.pstu.backend.exception.ResourceNotFoundException;
+import com.pstu.backend.mapper.TransactionMapper;
 import com.pstu.backend.repository.AccountRepository;
 import com.pstu.backend.repository.TransactionRepository;
 import com.pstu.backend.repository.UserRepository;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 
 @Service
@@ -63,7 +65,7 @@ public class TransferService {
         User receiver = userRepository.findByUsername(request.getToUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("Recipient not found: " + request.getToUsername()));
 
-        BigDecimal amount = request.getAmount().setScale(2, BigDecimal.ROUND_HALF_UP);
+        BigDecimal amount = request.getAmount().setScale(2, RoundingMode.HALF_UP);
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BadRequestException("Transfer amount must be positive");
         }
@@ -112,19 +114,6 @@ public class TransferService {
     }
 
     private TransactionResponse toResponse(Transaction tx) {
-        User sender = userRepository.findById(tx.getSenderAccountId()).orElse(null);
-        User receiver = userRepository.findById(tx.getReceiverAccountId()).orElse(null);
-        return new TransactionResponse(
-                tx.getReferenceId(),
-                tx.getType().name(),
-                tx.getStatus().name(),
-                tx.getSenderAccountId(),
-                tx.getReceiverAccountId(),
-                sender != null ? sender.getUsername() : null,
-                receiver != null ? receiver.getUsername() : null,
-                tx.getAmount(),
-                tx.getCurrency(),
-                tx.getDescription(),
-                tx.getCreatedAt());
+        return TransactionMapper.toResponse(tx, userRepository);
     }
 }
